@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Card Inventory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f7f6f2;
+    --surface: #ffffff;
+    --border: rgba(0,0,0,0.09);
+    --border-hover: rgba(0,0,0,0.18);
+    --text: #1a1a18;
+    --muted: #7a7870;
+    --accent: #2d6a4f;
+    --accent-light: #d8f3dc;
+    --accent-text: #1b4332;
+    --danger: #c0392b;
+    --radius: 12px;
+    --radius-sm: 7px;
+    --font: 'DM Sans', sans-serif;
+    --mono: 'DM Mono', monospace;
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* ── Auth overlay ── */
+  #auth-screen {
+    position: fixed; inset: 0; z-index: 100;
+    background: var(--bg);
+    display: none; align-items: center; justify-content: center;
+  }
+  .auth-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2.5rem 2rem;
+    width: 100%; max-width: 340px;
+    text-align: center;
+  }
+  .auth-box h1 { font-size: 20px; font-weight: 500; margin-bottom: 6px; }
+  .auth-box p { font-size: 13px; color: var(--muted); margin-bottom: 1.5rem; }
+  .auth-box input { width: 100%; margin-bottom: 10px; }
+  .auth-box button { width: 100%; }
+  .auth-error { color: var(--danger); font-size: 13px; margin-top: 8px; display: none; }
+
+  /* ── App layout ── */
+  #app { display: none; max-width: 1100px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 2rem; flex-wrap: wrap; gap: 12px;
+  }
+  .wordmark { font-size: 18px; font-weight: 500; letter-spacing: -0.02em; }
+  .wordmark span { color: var(--accent); }
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+  .sync-status {
+    font-size: 12px; color: var(--muted); border: 1px solid var(--border); padding: 6px 10px; border-radius: 999px;
+    background: rgba(255,255,255,0.92);
+  }
+  .sync-status.error { color: #c0392b; border-color: rgba(192,57,43,0.25); background: rgba(192,57,43,0.06); }
+  .sync-status.ok { color: var(--accent-text); border-color: rgba(45,106,79,0.25); background: rgba(45,106,79,0.08); }
+
+  /* ── Stats ── */
+  .stats {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 10px; margin-bottom: 2rem;
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 1rem 1.25rem;
+  }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+  .stat-value { font-size: 22px; font-weight: 500; font-family: var(--mono); }
+
+  /* ── Add card panel ── */
+  #add-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .panel-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 1rem; }
+
+  .search-suggest { position: relative; }
+  .suggestions {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    z-index: 50; max-height: 260px; overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  }
+  .suggestion-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; cursor: pointer; font-size: 14px;
+  }
+  .suggestion-item:hover { background: var(--bg); }
+  .suggestion-item img { width: 28px; height: 40px; object-fit: contain; border-radius: 3px; }
+  .suggestion-name { font-weight: 500; }
+  .suggestion-set { font-size: 12px; color: var(--muted); }
+  .suggestion-loading { padding: 12px; text-align: center; font-size: 13px; color: var(--muted); }
+
+  .form-row { display: grid; grid-template-columns: 2.5fr 1fr 1fr auto; gap: 8px; align-items: end; margin-top: 10px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .photo-row { grid-template-columns: 2fr 1fr auto; }
+  .photo-preview {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 36px; border: 1px dashed var(--border); border-radius: var(--radius-sm);
+    background: var(--bg); color: var(--muted); font-size: 12px; padding: 6px;
+  }
+  .photo-preview img { max-width: 100%; max-height: 44px; object-fit: contain; border-radius: 4px; }
+  .panel-note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  /* ── Inputs & buttons ── */
+  input, select {
+    width: 100%; font-family: var(--font); font-size: 14px;
+    padding: 8px 11px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg); color: var(--text);
+    outline: none; transition: border-color 0.15s;
+    height: 36px;
+  }
+  input:focus, select:focus { border-color: var(--accent); background: var(--surface); }
+  input::placeholder { color: var(--muted); }
+
+  button {
+    font-family: var(--font); font-size: 14px; font-weight: 500;
+    padding: 8px 16px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface); color: var(--text);
+    cursor: pointer; transition: background 0.15s, border-color 0.15s;
+    height: 36px; white-space: nowrap;
+  }
+  button:hover { background: var(--bg); border-color: var(--border-hover); }
+  button.primary { background: var(--text); color: var(--surface); border-color: var(--text); }
+  button.primary:hover { background: #333; }
+  button.danger-btn { color: var(--danger); border-color: rgba(192,57,43,0.2); }
+  button.danger-btn:hover { background: rgba(192,57,43,0.06); }
+  button.sm { height: 28px; padding: 4px 10px; font-size: 12px; }
+
+  /* ── Toolbar ── */
+  .toolbar { display: flex; gap: 8px; margin-bottom: 1.25rem; flex-wrap: wrap; }
+  .toolbar input { max-width: 260px; }
+  .toolbar select { max-width: 160px; }
+
+  /* ── Card grid ── */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+
+  .card-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: border-color 0.15s, transform 0.15s;
+    position: relative;
+  }
+  .card-item:hover { border-color: var(--border-hover); transform: translateY(-2px); }
+
+  .card-img-wrap {
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    padding: 12px; aspect-ratio: 3/4;
+  }
+  .card-img-wrap img { width: 100%; height: 100%; object-fit: contain; border-radius: 6px; }
+  .card-img-placeholder {
+    width: 100%; height: 100%; border-radius: 6px;
+    background: #e8e6e0; display: flex; align-items: center; justify-content: center;
+    font-size: 28px; color: #bbb;
+  }
+
+  .card-info { padding: 10px 12px 12px; }
+  .card-name { font-size: 14px; font-weight: 500; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-set { font-size: 11px; color: var(--muted); margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-meta { display: flex; justify-content: space-between; align-items: center; }
+  .pill { font-size: 12px; padding: 2px 9px; border-radius: 99px; font-family: var(--mono); }
+  .pill-qty { background: var(--bg); color: var(--muted); border: 1px solid var(--border); }
+  .pill-price { background: var(--accent-light); color: var(--accent-text); }
+
+  .card-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .card-actions button { flex: 1; }
+
+  /* ── Empty state ── */
+  .empty { text-align: center; padding: 4rem 0; color: var(--muted); grid-column: 1/-1; }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+  .empty p { font-size: 14px; }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--text); color: var(--surface);
+    padding: 9px 18px; border-radius: 99px; font-size: 13px;
+    opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 200;
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+
+  /* ── Edit modal ── */
+  #edit-modal {
+    position: fixed; inset: 0; z-index: 150;
+    background: rgba(0,0,0,0.35);
+    display: none; align-items: center; justify-content: center;
+  }
+  #edit-modal.open { display: flex; }
+  .modal-box {
+    background: var(--surface); border-radius: var(--radius);
+    padding: 1.5rem; width: 100%; max-width: 380px; margin: 0 1rem;
+  }
+  .modal-box h2 { font-size: 16px; font-weight: 500; margin-bottom: 1rem; }
+  .modal-field { margin-bottom: 10px; }
+  .modal-field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .modal-field input { width: 100%; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 1rem; justify-content: flex-end; }
+
+  #detail-modal {
+    position: fixed; inset: 0; z-index: 160;
+    background: rgba(0,0,0,0.55);
+    display: none; align-items: center; justify-content: center;
+    padding: 1rem;
+  }
+  #detail-modal.open { display: flex; }
+  .detail-box {
+    background: var(--surface); border-radius: var(--radius); width: min(980px,100%); overflow: hidden;
+    display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 0; position: relative;
+    box-shadow: 0 18px 50px rgba(0,0,0,0.18);
+  }
+  .detail-close {
+    position: absolute; top: 14px; right: 14px; border: none; background: rgba(255,255,255,0.9);
+    color: var(--text); width: 36px; height: 36px; border-radius: 50%; font-size: 18px; cursor: pointer;
+  }
+  .detail-image-wrap {
+    background: #111; display: flex; align-items: center; justify-content: center;
+    min-height: 420px; overflow: hidden; position: relative; cursor: zoom-in;
+  }
+  .detail-image-wrap img {
+    max-width: 100%; max-height: 100%; object-fit: contain; transition: transform 0.25s ease;
+  }
+  .detail-image-wrap.zoomed img { transform: scale(1.8); cursor: zoom-out; }
+  .detail-info {
+    padding: 2rem; display: flex; flex-direction: column; justify-content: center;
+  }
+  .detail-info h2 { margin-bottom: 0.75rem; font-size: 24px; }
+  .detail-info p { margin-bottom: 0.65rem; color: var(--muted); }
+  .detail-price { font-size: 28px; font-weight: 600; margin-bottom: 1rem; }
+  .detail-meta { display: grid; gap: 0.5rem; margin-top: 1rem; }
+  .detail-meta span { font-size: 14px; color: var(--muted); }
+  .zoom-tip { margin-top: 1rem; font-size: 12px; color: var(--muted); }
+
+  @media (max-width: 840px) {
+    .detail-box { grid-template-columns: 1fr; }
+    .detail-image-wrap { min-height: 320px; }
+  }
+  @media (max-width: 600px) {
+    .stats { grid-template-columns: repeat(3,1fr); }
+    .form-row { grid-template-columns: 1fr 1fr; }
+    .form-row .field:first-child { grid-column: 1/-1; }
+    .form-row button { grid-column: 1/-1; width: 100%; }
+    .card-grid { grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── AUTH ── -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <h1>Card Inventory</h1>
+    <p>Enter your password to manage cards</p>
+    <input type="password" id="pw-input" placeholder="Password" onkeydown="if(event.key==='Enter')tryLogin()" />
+    <button class="primary" onclick="tryLogin()">Unlock</button>
+    <div class="auth-error" id="auth-err">Incorrect password</div>
+    <p style="margin-top:1.5rem;font-size:12px;color:#bbb">Visitors can browse without signing in.</p>
+  </div>
+</div>
+
+<!-- ── APP ── -->
+<div id="app">
+  <header>
+    <div class="wordmark">card<span>vault</span></div>
+    <div class="header-actions">
+      <span id="mode-badge" style="font-size:12px;color:var(--muted)"></span>
+      <span id="sync-status" class="sync-status ok">Sync: pending</span>
+      <button class="sm" onclick="showLogin()" id="login-btn">Admin login</button>
+      <button class="sm" onclick="logout()" id="logout-btn" style="display:none">Lock</button>
+    </div>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-label">Total cards</div><div class="stat-value" id="stat-total">—</div></div>
+    <div class="stat"><div class="stat-label">Unique listings</div><div class="stat-value" id="stat-unique">—</div></div>
+    <div class="stat"><div class="stat-label">Asking value</div><div class="stat-value" id="stat-value">—</div></div>
+  </div>
+
+  <!-- Add panel (admin only) -->
+  <div id="add-panel">
+    <div class="panel-title">Add a card</div>
+    <div class="search-suggest">
+      <input type="text" id="card-search" placeholder="Search card name (e.g. Charizard)…" oninput="onCardSearch()" autocomplete="off" />
+      <div class="suggestions" id="suggestions" style="display:none"></div>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label>Set</label>
+        <input type="text" id="f-set" placeholder="e.g. Base Set" />
+      </div>
+      <div class="field">
+        <label>Qty</label>
+        <input type="number" id="f-qty" min="1" value="1" />
+      </div>
+      <div class="field">
+        <label>Price (AUD)</label>
+        <input type="number" id="f-price" min="0" step="0.01" placeholder="0.00" />
+      </div>
+      <button class="primary" onclick="addCard()">Add</button>
+    </div>
+    <div class="form-row photo-row">
+      <div class="field">
+        <label>Photo URL</label>
+        <input type="url" id="f-photo-url" placeholder="https://example.com/card.jpg" />
+      </div>
+      <div class="field">
+        <label>Upload image</label>
+        <input type="file" id="f-photo-file" accept="image/*" onchange="handlePhotoUpload(event)" />
+      </div>
+      <div class="field">
+        <label>Preview</label>
+        <div class="photo-preview" id="photo-preview">No photo yet</div>
+      </div>
+    </div>
+    <p class="panel-note">Customers can browse the cards below. Admins can attach a photo here to make listings more visual.</p>
+    <input type="hidden" id="f-name" />
+    <input type="hidden" id="f-img" />
+    <input type="hidden" id="f-photo" />
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="search" placeholder="Search inventory…" oninput="render()" />
+    <select id="sort" onchange="render()">
+      <option value="name">Name A–Z</option>
+      <option value="price-desc">Price ↓</option>
+      <option value="price-asc">Price ↑</option>
+      <option value="qty-desc">Qty ↓</option>
+      <option value="recent">Recently added</option>
+    </select>
+  </div>
+
+  <p class="panel-note" style="margin-bottom: 1rem;">Customers can browse cards here, and admins can add photos from the form above.</p>
+  <div class="card-grid" id="card-grid"></div>
+</div>
+
+<div id="detail-modal" onclick="closeDetail()">
+  <div class="detail-box" onclick="event.stopPropagation()">
+    <button class="detail-close" onclick="closeDetail()">×</button>
+    <div class="detail-image-wrap" id="detail-image-wrap" onclick="toggleZoom()">
+      <img id="detail-img" src="" alt="Card image" />
+    </div>
+    <div class="detail-info">
+      <h2 id="detail-name"></h2>
+      <p id="detail-set"></p>
+      <div class="detail-price" id="detail-price"></div>
+      <div class="detail-meta">
+        <span id="detail-qty"></span>
+        <span id="detail-added"></span>
+      </div>
+      <p class="zoom-tip">Click the image to zoom.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── EDIT MODAL ── -->
+<div id="edit-modal">
+  <div class="modal-box">
+    <h2>Edit card</h2>
+    <div class="modal-field"><label>Card name</label><input id="e-name" type="text" /></div>
+    <div class="modal-field"><label>Set</label><input id="e-set" type="text" /></div>
+    <div class="modal-field"><label>Quantity</label><input id="e-qty" type="number" min="1" /></div>
+    <div class="modal-field"><label>Price (AUD)</label><input id="e-price" type="number" step="0.01" /></div>
+    <div class="modal-field"><label>Photo URL</label><input id="e-img" type="text" placeholder="https://example.com/card.jpg" /></div>
+    <div class="modal-actions">
+      <button onclick="closeEdit()">Cancel</button>
+      <button class="primary" onclick="saveEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getDatabase, ref, push, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+  // ── REPLACE these with YOUR Firebase config (Step 1 of the setup guide) ──
+  const firebaseConfig = {
+    apiKey: "AIzaSyDeni8lR_DISyj37nILaeBzwZq_HxBDdSw",
+    authDomain: "poke-fad71.firebaseapp.com",
+    databaseURL: "https://poke-fad71-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "poke-fad71",
+    storageBucket: "poke-fad71.firebasestorage.app",
+    messagingSenderId: "192654276670",
+    appId: "1:192654276670:web:cf64967f8bb1399047f96f"
+  };
+
+  const PASSWORD = "test"; // ← Change this to your password
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getDatabase(app);
+  const cardsRef = ref(db, 'cards');
+
+  let inventory = [];
+  let isAdmin = false;
+  const LOCAL_STORAGE_KEY = 'card-inventory-local';
+
+  function loadLocalInventory() {
+    try { return JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]'); }
+    catch (e) { return []; }
+  }
+
+  function saveLocalInventory(cards) {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cards));
+  }
+
+  function saveLocalCard(card) {
+    const list = loadLocalInventory();
+    list.push(card);
+    saveLocalInventory(list);
+  }
+
+  function mergeInventory(firebaseCards) {
+    return [...firebaseCards, ...loadLocalInventory()];
+  }
+
+  function setSyncStatus(message, ok = true) {
+    const el = document.getElementById('sync-status');
+    if (!el) return;
+    el.textContent = message;
+    el.classList.toggle('ok', ok);
+    el.classList.toggle('error', !ok);
+  }
+
+  function initFirebase() {
+    signInAnonymously(auth)
+      .then(() => {
+        setSyncStatus('Sync: connected');
+        loadCards();
+      })
+      .catch((err) => {
+        console.warn('Anonymous Firebase auth failed:', err);
+        setSyncStatus('Sync unavailable: anonymous auth failed', false);
+        inventory = loadLocalInventory();
+        render();
+      });
+  }
+
+  // Start in guest/view-only mode so customers see the catalog first.
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('add-panel').style.display = 'none';
+  document.getElementById('mode-badge').textContent = 'Viewing';
+  document.getElementById('login-btn').style.display = '';
+  document.getElementById('logout-btn').style.display = 'none';
+  initFirebase();
+  let editingId = null;
+  let searchTimeout = null;
+  let selectedCard = null;
+
+  // ── Auth ──
+  window.showLogin = () => {
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('pw-input').focus();
+    document.getElementById('auth-err').style.display = 'none';
+  };
+
+  window.tryLogin = () => {
+    const pw = document.getElementById('pw-input').value;
+    if (pw === PASSWORD) {
+      isAdmin = true;
+      document.getElementById('auth-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      document.getElementById('add-panel').style.display = 'block';
+      document.getElementById('mode-badge').textContent = 'Admin';
+      document.getElementById('login-btn').style.display = 'none';
+      document.getElementById('logout-btn').style.display = '';
+      loadCards();
+    } else {
+      document.getElementById('auth-err').style.display = 'block';
+    }
+  };
+
+  window.viewOnly = () => {
+    isAdmin = false;
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('add-panel').style.display = 'none';
+    document.getElementById('mode-badge').textContent = 'Viewing';
+    document.getElementById('login-btn').style.display = '';
+    document.getElementById('logout-btn').style.display = 'none';
+    loadCards();
+  };
+
+  window.logout = () => {
+    isAdmin = false;
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('add-panel').style.display = 'none';
+    document.getElementById('pw-input').value = '';
+    document.getElementById('auth-err').style.display = 'none';
+    document.getElementById('mode-badge').textContent = 'Viewing';
+    document.getElementById('login-btn').style.display = '';
+    document.getElementById('logout-btn').style.display = 'none';
+    loadCards();
+  };
+
+  // ── Firebase ──
+  function loadCards() {
+    onValue(cardsRef, snap => {
+      const firebaseCards = [];
+      if (snap.exists()) {
+        snap.forEach(child => {
+          firebaseCards.push({ id: child.key, ...child.val() });
+        });
+      }
+      inventory = mergeInventory(firebaseCards);
+      render();
+    }, error => {
+      inventory = loadLocalInventory();
+      render();
+    });
+  }
+
+  // ── Pokémon TCG search ──
+  function readPhotoFile(file) {
+    return new Promise((resolve) => {
+      if (!file) {
+        resolve('');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result || '');
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
+  }
+
+  window.handlePhotoUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const dataUrl = await readPhotoFile(file);
+    document.getElementById('f-photo').value = dataUrl;
+    document.getElementById('f-photo-url').value = '';
+    const preview = document.getElementById('photo-preview');
+    preview.innerHTML = dataUrl ? `<img src="${dataUrl}" alt="Selected preview" />` : 'No photo yet';
+  };
+
+  window.onCardSearch = () => {
+    clearTimeout(searchTimeout);
+    const q = document.getElementById('card-search').value.trim();
+    if (q.length < 2) { hideSuggestions(); return; }
+    searchTimeout = setTimeout(() => fetchSuggestions(q), 350);
+  };
+
+  async function fetchSuggestions(q) {
+    const box = document.getElementById('suggestions');
+    box.style.display = 'block';
+    box.innerHTML = '<div class="suggestion-loading">Searching…</div>';
+    try {
+      const res = await fetch(`https://api.pokemontcg.io/v2/cards?q=name:"${encodeURIComponent(q)}"&pageSize=8&select=id,name,set,images`);
+      const data = await res.json();
+      if (!data.data || data.data.length === 0) {
+        box.innerHTML = '<div class="suggestion-loading">No cards found</div>'; return;
+      }
+      box.innerHTML = data.data.map(c => `
+        <div class="suggestion-item" onclick="selectCard(${JSON.stringify({name:c.name,set:c.set.name,img:c.images.small}).replace(/"/g,'&quot;')})">
+          <img src="${c.images.small}" alt="${c.name}" loading="lazy" />
+          <div><div class="suggestion-name">${c.name}</div><div class="suggestion-set">${c.set.name}</div></div>
+        </div>
+      `).join('');
+    } catch(e) { box.innerHTML = '<div class="suggestion-loading">Search unavailable</div>'; }
+  }
+
+  window.selectCard = (card) => {
+    selectedCard = card;
+    document.getElementById('card-search').value = card.name;
+    document.getElementById('f-name').value = card.name;
+    document.getElementById('f-set').value = card.set;
+    document.getElementById('f-img').value = card.img;
+    hideSuggestions();
+    document.getElementById('f-price').focus();
+  };
+
+  function hideSuggestions() {
+    document.getElementById('suggestions').style.display = 'none';
+  }
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.search-suggest')) hideSuggestions();
+  });
+
+  // ── Add card ──
+  window.addCard = async () => {
+    const name = document.getElementById('f-name').value.trim() || document.getElementById('card-search').value.trim();
+    const set = document.getElementById('f-set').value.trim();
+    const qty = parseInt(document.getElementById('f-qty').value) || 1;
+    const price = parseFloat(document.getElementById('f-price').value) || 0;
+    const fileInput = document.getElementById('f-photo-file');
+    let img = document.getElementById('f-photo').value || document.getElementById('f-photo-url').value.trim() || document.getElementById('f-img').value || '';
+
+    if (fileInput.files?.[0] && !img) {
+      img = await readPhotoFile(fileInput.files[0]);
+      document.getElementById('f-photo').value = img;
+    }
+
+    if (!name) { document.getElementById('card-search').focus(); return; }
+
+    const card = { name, set, qty, price, img, added: Date.now() };
+    try {
+      const newCardRef = push(cardsRef);
+      await update(newCardRef, card);
+      toast('Card added');
+      setSyncStatus('Sync: connected');
+    } catch (err) {
+      console.warn('Firebase write failed:', err);
+      setSyncStatus('Sync: blocked by DB rules', false);
+      card.id = `local-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      saveLocalCard(card);
+      inventory.push(card);
+      render();
+      toast('Saved locally (no DB write access)');
+    }
+
+    document.getElementById('card-search').value = '';
+    document.getElementById('f-name').value = '';
+    document.getElementById('f-set').value = '';
+    document.getElementById('f-qty').value = '1';
+    document.getElementById('f-price').value = '';
+    document.getElementById('f-img').value = '';
+    document.getElementById('f-photo').value = '';
+    document.getElementById('f-photo-url').value = '';
+    document.getElementById('f-photo-file').value = '';
+    document.getElementById('photo-preview').innerHTML = 'No photo yet';
+    selectedCard = null;
+  };
+
+  // ── Delete ──
+  window.deleteCard = async (id) => {
+    if (!confirm('Remove this card?')) return;
+    await remove(ref(db, `cards/${id}`));
+    toast('Removed');
+  };
+
+  // ── Edit ──
+  window.openEdit = (id) => {
+    const c = inventory.find(x => x.id === id);
+    if (!c) return;
+    editingId = id;
+    document.getElementById('e-name').value = c.name;
+    document.getElementById('e-set').value = c.set || '';
+    document.getElementById('e-qty').value = c.qty;
+    document.getElementById('e-price').value = c.price;
+    document.getElementById('e-img').value = c.img || '';
+    document.getElementById('edit-modal').classList.add('open');
+  };
+
+  window.closeEdit = () => { editingId = null; document.getElementById('edit-modal').classList.remove('open'); };
+
+  window.saveEdit = async () => {
+    if (!editingId) return;
+    await update(ref(db, `cards/${editingId}`), {
+      name: document.getElementById('e-name').value.trim(),
+      set: document.getElementById('e-set').value.trim(),
+      qty: parseInt(document.getElementById('e-qty').value) || 1,
+      price: parseFloat(document.getElementById('e-price').value) || 0,
+      img: document.getElementById('e-img').value.trim(),
+    });
+    closeEdit();
+    toast('Saved');
+  };
+
+  // ── Render ──
+  window.render = () => {
+    const q = document.getElementById('search').value.toLowerCase();
+    const sort = document.getElementById('sort').value;
+    let list = inventory.filter(c =>
+      (c.name||'').toLowerCase().includes(q) || (c.set||'').toLowerCase().includes(q)
+    );
+    if (sort === 'price-desc') list.sort((a,b) => b.price - a.price);
+    else if (sort === 'price-asc') list.sort((a,b) => a.price - b.price);
+    else if (sort === 'qty-desc') list.sort((a,b) => b.qty - a.qty);
+    else if (sort === 'recent') list.sort((a,b) => (b.added||0) - (a.added||0));
+    else list.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+
+    const total = inventory.reduce((s,c) => s+c.qty, 0);
+    const value = inventory.reduce((s,c) => s+c.qty*c.price, 0);
+    document.getElementById('stat-total').textContent = total;
+    document.getElementById('stat-unique').textContent = inventory.length;
+    document.getElementById('stat-value').textContent = '$' + value.toFixed(2);
+
+    const grid = document.getElementById('card-grid');
+    if (list.length === 0) {
+      grid.innerHTML = `<div class="empty">
+        <div class="empty-icon">🃏</div>
+        <p>${inventory.length === 0 ? 'No cards yet — add your first one above' : 'No results for that search'}</p>
+      </div>`;
+      return;
+    }
+
+    grid.innerHTML = list.map(c => `
+      <div class="card-item" onclick="openDetail('${c.id}')">
+        <div class="card-img-wrap">
+          ${c.img
+            ? `<img src="${c.img}" alt="${esc(c.name)}" loading="lazy" />`
+            : `<div class="card-img-placeholder">🃏</div>`}
+        </div>
+        <div class="card-info">
+          <div class="card-name" title="${esc(c.name)}">${esc(c.name)}</div>
+          <div class="card-set">${esc(c.set||'Unknown set')}</div>
+          <div class="card-meta">
+            <span class="pill pill-qty">${c.qty}×</span>
+            <span class="pill pill-price">$${parseFloat(c.price).toFixed(2)}</span>
+          </div>
+          ${isAdmin ? `<div class="card-actions">
+            <button class="sm" onclick="event.stopPropagation(); openEdit('${c.id}')">Edit</button>
+            <button class="sm danger-btn" onclick="event.stopPropagation(); deleteCard('${c.id}')">Remove</button>
+          </div>` : ''}
+        </div>
+      </div>
+    `).join('');
+  };
+
+  function esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  window.openDetail = (id) => {
+    const card = inventory.find(x => x.id === id);
+    if (!card) return;
+    document.getElementById('detail-img').src = card.img || '';
+    document.getElementById('detail-name').textContent = card.name;
+    document.getElementById('detail-set').textContent = card.set || 'Unknown set';
+    document.getElementById('detail-price').textContent = '$' + parseFloat(card.price || 0).toFixed(2);
+    document.getElementById('detail-qty').textContent = `Quantity: ${card.qty || 1}`;
+    document.getElementById('detail-added').textContent = card.added
+      ? `Added: ${new Date(card.added).toLocaleDateString()}`
+      : '';
+    document.getElementById('detail-modal').classList.add('open');
+    document.getElementById('detail-image-wrap').classList.remove('zoomed');
+  };
+
+  window.closeDetail = () => {
+    document.getElementById('detail-modal').classList.remove('open');
+    document.getElementById('detail-image-wrap').classList.remove('zoomed');
+  };
+
+  window.toggleZoom = () => {
+    const wrap = document.getElementById('detail-image-wrap');
+    wrap.classList.toggle('zoomed');
+  };
+
+  // ── Toast ──
+  let toastTimer;
+  window.toast = (msg) => {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+  };
+</script>
+</body>
+</html>
