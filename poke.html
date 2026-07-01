@@ -260,7 +260,6 @@
     background: #000 no-repeat center center; overflow: hidden; pointer-events: none;
     box-shadow: 0 0 15px rgba(0,0,0,0.9), inset 0 0 10px rgba(0,0,0,0.5);
     z-index: 10;
-    background-size: 700px 1050px;
   }
   .detail-image-wrap.zoomed { cursor: crosshair; }
   .detail-info {
@@ -777,13 +776,23 @@
     document.getElementById('detail-modal').classList.add('open');
     document.getElementById('detail-image-wrap').classList.remove('zoomed');
     
-    // Wait for image to load, then setup zoom
-    img.onload = () => {
+    // Wait for image to load, then setup zoom with correct dimensions
+    const setupZoom = () => {
       const lens = document.getElementById('zoom-lens');
       const zoomLevel = 3.5;
-      lens.style.backgroundSize = (img.naturalWidth * zoomLevel) + 'px ' + (img.naturalHeight * zoomLevel) + 'px';
+      const zoomedWidth = img.naturalWidth * zoomLevel;
+      const zoomedHeight = img.naturalHeight * zoomLevel;
+      lens.style.backgroundSize = zoomedWidth + 'px ' + zoomedHeight + 'px';
       lens.style.backgroundImage = `url('${card.img}')`;
     };
+    
+    if (img.complete) {
+      // Image already cached/loaded
+      setupZoom();
+    } else {
+      // Wait for image to load
+      img.onload = setupZoom;
+    }
     
     // Add pan functionality
     const wrap = document.getElementById('detail-image-wrap');
