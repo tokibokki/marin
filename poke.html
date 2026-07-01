@@ -244,22 +244,21 @@
   }
   .detail-image-wrap {
     background: #111; display: flex; align-items: center; justify-content: center;
-    min-height: 420px; overflow: hidden; position: relative; cursor: zoom-in;
+    min-height: 420px; overflow: hidden; position: relative; cursor: crosshair;
     user-select: none;
   }
   .detail-image-wrap img {
     max-width: 100%; max-height: 100%; object-fit: contain;
-    transform-origin: center;
     pointer-events: none;
     user-select: none;
     -webkit-user-drag: none;
   }
   
   #zoom-lens {
-    display: none; position: absolute; width: 150px; height: 150px;
-    border: 2px solid rgba(255, 255, 255, 0.8); border-radius: 8px;
-    background: #111; overflow: hidden; pointer-events: none;
-    box-shadow: 0 0 10px rgba(0,0,0,0.8);
+    display: none; position: absolute; width: 200px; height: 200px;
+    border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 50%;
+    background: #000; overflow: hidden; pointer-events: none;
+    box-shadow: 0 0 15px rgba(0,0,0,0.9), inset 0 0 10px rgba(0,0,0,0.5);
     z-index: 10;
   }
   #zoom-lens img {
@@ -803,54 +802,56 @@
 
   function handleImagePan(e) {
     if (!isPanning) return;
+    e.preventDefault();
     
     const wrap = e.currentTarget;
+    const img = document.getElementById('detail-img');
     const lens = document.getElementById('zoom-lens');
     const lensImg = document.getElementById('zoom-lens-img');
-    const img = document.getElementById('detail-img');
     
     const wrapRect = wrap.getBoundingClientRect();
     const imgRect = img.getBoundingClientRect();
     
-    // Cursor position relative to wrap
-    const cursorX = e.clientX - wrapRect.left;
-    const cursorY = e.clientY - wrapRect.top;
+    // Cursor position relative to viewport
+    const cursorX = e.clientX;
+    const cursorY = e.clientY;
     
-    // Position lens square around cursor
-    const lensSize = 150;
-    lens.style.left = (cursorX - lensSize / 2) + 'px';
-    lens.style.top = (cursorY - lensSize / 2) + 'px';
+    // Lens size
+    const lensSize = 200;
+    
+    // Position lens centered on cursor
+    lens.style.left = (cursorX - wrapRect.left - lensSize / 2) + 'px';
+    lens.style.top = (cursorY - wrapRect.top - lensSize / 2) + 'px';
     
     // Cursor position relative to image
-    const cursorXOnImg = e.clientX - imgRect.left;
-    const cursorYOnImg = e.clientY - imgRect.top;
+    const cursorXInImg = cursorX - imgRect.left;
+    const cursorYInImg = cursorY - imgRect.top;
     
-    // Calculate what fraction of the image is under the cursor
-    const percentX = cursorXOnImg / imgRect.width;
-    const percentY = cursorYOnImg / imgRect.height;
+    // Clamp to image bounds
+    const clampedX = Math.max(0, Math.min(cursorXInImg, imgRect.width));
+    const clampedY = Math.max(0, Math.min(cursorYInImg, imgRect.height));
     
-    // Zoom level
-    const zoomLevel = 3.5;
+    // Zoom factor
+    const zoomFactor = 3.5;
+    
+    // Scale the image inside lens
+    const scaledWidth = imgRect.width * zoomFactor;
+    const scaledHeight = imgRect.height * zoomFactor;
+    
+    // Position of cursor point when image is zoomed
+    const zoomedCursorX = clampedX * zoomFactor;
+    const zoomedCursorY = clampedY * zoomFactor;
+    
+    // Offset to center the cursor point in the lens
     const lensCenter = lensSize / 2;
-    
-    // Size of zoomed image
-    const zoomedWidth = imgRect.width * zoomLevel;
-    const zoomedHeight = imgRect.height * zoomLevel;
-    
-    // Position where the cursor point should be centered in the lens
-    const zoomedCursorX = percentX * zoomedWidth;
-    const zoomedCursorY = percentY * zoomedHeight;
-    
-    // Calculate offset to center the cursor point in the lens
     const offsetX = lensCenter - zoomedCursorX;
     const offsetY = lensCenter - zoomedCursorY;
     
-    // Update lens image dimensions and position
-    lensImg.style.width = zoomedWidth + 'px';
-    lensImg.style.height = zoomedHeight + 'px';
+    // Apply transform
+    lensImg.style.width = scaledWidth + 'px';
+    lensImg.style.height = scaledHeight + 'px';
     lensImg.style.left = offsetX + 'px';
     lensImg.style.top = offsetY + 'px';
-    lensImg.style.transform = 'none';
   }
 
   function stopPan(e) {
