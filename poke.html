@@ -247,12 +247,10 @@
     min-height: 420px; overflow: hidden; position: relative; cursor: zoom-in;
   }
   .detail-image-wrap img {
-    max-width: 100%; max-height: 100%; object-fit: contain; transition: transform 0.1s ease;
+    max-width: 100%; max-height: 100%; object-fit: contain; transition: none;
     transform-origin: center;
   }
-  .detail-image-wrap:hover img { transform: scale(3.5); }
-  .detail-image-wrap:hover { cursor: grab; }
-  .detail-image-wrap:hover img:active { cursor: grabbing; }
+  .detail-image-wrap.panning { cursor: grabbing; }
   .detail-image-wrap.zoomed img { transform: scale(3.5); }
   .detail-info {
     padding: 2rem; display: flex; flex-direction: column; justify-content: center;
@@ -380,7 +378,7 @@
         <span id="detail-qty"></span>
         <span id="detail-added"></span>
       </div>
-      <p class="zoom-tip">Hover over the image to zoom and pan.</p>
+      <p class="zoom-tip">Click and drag the image to zoom and pan.</p>
     </div>
   </div>
 </div>
@@ -750,6 +748,8 @@
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  let isPanning = false;
+
   window.openDetail = (id) => {
     const card = inventory.find(x => x.id === id);
     if (!card) return;
@@ -766,36 +766,50 @@
     
     // Add pan functionality
     const wrap = document.getElementById('detail-image-wrap');
-    const img = document.getElementById('detail-img');
+    wrap.addEventListener('mousedown', startPan);
     wrap.addEventListener('mousemove', handleImagePan);
-    wrap.addEventListener('mouseleave', resetImagePan);
+    wrap.addEventListener('mouseup', stopPan);
+    wrap.addEventListener('mouseleave', stopPan);
   };
 
+  function startPan(e) {
+    isPanning = true;
+    const wrap = e.currentTarget;
+    wrap.classList.add('zoomed');
+    wrap.classList.add('panning');
+  }
+
   function handleImagePan(e) {
+    if (!isPanning) return;
+    
     const wrap = e.currentTarget;
     const img = wrap.querySelector('img');
     const rect = wrap.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
     const y = (e.clientY - rect.top) / rect.height;
     
-    // Convert 0-1 range to offset (moves image in opposite direction)
+    // Higher sensitivity for pan - moves more with less mouse movement
     const offsetX = (x - 0.5) * 100;
     const offsetY = (y - 0.5) * 100;
     
-    img.style.transform = `scale(3.5) translate(${offsetX * -0.3}px, ${offsetY * -0.3}px)`;
+    img.style.transform = `scale(3.5) translate(${offsetX * -1.2}px, ${offsetY * -1.2}px)`;
   }
 
-  function resetImagePan(e) {
-    const img = e.currentTarget.querySelector('img');
-    img.style.transform = 'scale(3.5)';
+  function stopPan(e) {
+    isPanning = false;
+    const wrap = e.currentTarget;
+    wrap.classList.remove('panning');
   }
 
   window.closeDetail = () => {
     document.getElementById('detail-modal').classList.remove('open');
     document.getElementById('detail-image-wrap').classList.remove('zoomed');
+    isPanning = false;
     const wrap = document.getElementById('detail-image-wrap');
+    wrap.removeEventListener('mousedown', startPan);
     wrap.removeEventListener('mousemove', handleImagePan);
-    wrap.removeEventListener('mouseleave', resetImagePan);
+    wrap.removeEventListener('mouseup', stopPan);
+    wrap.removeEventListener('mouseleave', stopPan);
   };
 
   // ── Toast ──
