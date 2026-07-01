@@ -257,15 +257,10 @@
   #zoom-lens {
     display: none; position: absolute; width: 200px; height: 200px;
     border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 50%;
-    background: #000; overflow: hidden; pointer-events: none;
+    background: #000 no-repeat center center; overflow: hidden; pointer-events: none;
     box-shadow: 0 0 15px rgba(0,0,0,0.9), inset 0 0 10px rgba(0,0,0,0.5);
     z-index: 10;
-  }
-  #zoom-lens img {
-    position: absolute; width: 100%; height: 100%;
-    object-fit: contain;
-    pointer-events: none;
-    user-select: none;
+    background-size: 700px 1050px;
   }
   .detail-image-wrap.zoomed { cursor: crosshair; }
   .detail-info {
@@ -385,9 +380,7 @@
     <button class="detail-close" onclick="closeDetail()">×</button>
     <div class="detail-image-wrap" id="detail-image-wrap">
       <img id="detail-img" src="" alt="Card image" />
-      <div id="zoom-lens">
-        <img id="zoom-lens-img" src="" alt="Zoomed view" />
-      </div>
+      <div id="zoom-lens"></div>
     </div>
     <div class="detail-info">
       <h2 id="detail-name"></h2>
@@ -774,7 +767,6 @@
     if (!card) return;
     const img = document.getElementById('detail-img');
     img.src = card.img || '';
-    document.getElementById('zoom-lens-img').src = card.img || '';
     document.getElementById('detail-name').textContent = card.name;
     document.getElementById('detail-set').textContent = card.set || 'Unknown set';
     document.getElementById('detail-price').textContent = '$' + parseFloat(card.price || 0).toFixed(2);
@@ -784,6 +776,14 @@
       : '';
     document.getElementById('detail-modal').classList.add('open');
     document.getElementById('detail-image-wrap').classList.remove('zoomed');
+    
+    // Wait for image to load, then setup zoom
+    img.onload = () => {
+      const lens = document.getElementById('zoom-lens');
+      const zoomLevel = 3.5;
+      lens.style.backgroundSize = (img.naturalWidth * zoomLevel) + 'px ' + (img.naturalHeight * zoomLevel) + 'px';
+      lens.style.backgroundImage = `url('${card.img}')`;
+    };
     
     // Add pan functionality
     const wrap = document.getElementById('detail-image-wrap');
@@ -807,51 +807,45 @@
     const wrap = e.currentTarget;
     const img = document.getElementById('detail-img');
     const lens = document.getElementById('zoom-lens');
-    const lensImg = document.getElementById('zoom-lens-img');
     
     const wrapRect = wrap.getBoundingClientRect();
     const imgRect = img.getBoundingClientRect();
     
-    // Cursor position relative to viewport
-    const cursorX = e.clientX;
-    const cursorY = e.clientY;
-    
-    // Lens size
     const lensSize = 200;
+    const zoomLevel = 3.5;
     
-    // Position lens centered on cursor
-    lens.style.left = (cursorX - wrapRect.left - lensSize / 2) + 'px';
-    lens.style.top = (cursorY - wrapRect.top - lensSize / 2) + 'px';
+    // Position lens at cursor
+    const lensX = e.clientX - wrapRect.left - lensSize / 2;
+    const lensY = e.clientY - wrapRect.top - lensSize / 2;
+    lens.style.left = lensX + 'px';
+    lens.style.top = lensY + 'px';
     
-    // Cursor position relative to image
-    const cursorXInImg = cursorX - imgRect.left;
-    const cursorYInImg = cursorY - imgRect.top;
+    // Calculate cursor position relative to image
+    const cursorXInImg = e.clientX - imgRect.left;
+    const cursorYInImg = e.clientY - imgRect.top;
     
     // Clamp to image bounds
-    const clampedX = Math.max(0, Math.min(cursorXInImg, imgRect.width));
-    const clampedY = Math.max(0, Math.min(cursorYInImg, imgRect.height));
+    const clampX = Math.max(0, Math.min(cursorXInImg, imgRect.width));
+    const clampY = Math.max(0, Math.min(cursorYInImg, imgRect.height));
     
-    // Zoom factor
-    const zoomFactor = 3.5;
+    // Calculate what part of the zoomed image should show in lens
+    // When zoomed 3.5x, the image is 3.5x larger
+    // We want the cursor point to be at the center of the lens
+    const zoomedImgWidth = imgRect.width * zoomLevel;
+    const zoomedImgHeight = imgRect.height * zoomLevel;
     
-    // Scale the image inside lens
-    const scaledWidth = imgRect.width * zoomFactor;
-    const scaledHeight = imgRect.height * zoomFactor;
+    // Position in zoomed image where cursor is
+    const zoomedX = clampX * zoomLevel;
+    const zoomedY = clampY * zoomLevel;
     
-    // Position of cursor point when image is zoomed
-    const zoomedCursorX = clampedX * zoomFactor;
-    const zoomedCursorY = clampedY * zoomFactor;
-    
-    // Offset to center the cursor point in the lens
+    // Center of lens
     const lensCenter = lensSize / 2;
-    const offsetX = lensCenter - zoomedCursorX;
-    const offsetY = lensCenter - zoomedCursorY;
     
-    // Apply transform
-    lensImg.style.width = scaledWidth + 'px';
-    lensImg.style.height = scaledHeight + 'px';
-    lensImg.style.left = offsetX + 'px';
-    lensImg.style.top = offsetY + 'px';
+    // Background position: how much to offset so cursor point is centered in lens
+    const bgX = -(zoomedX - lensCenter);
+    const bgY = -(zoomedY - lensCenter);
+    
+    lens.style.backgroundPosition = bgX + 'px ' + bgY + 'px';
   }
 
   function stopPan(e) {
