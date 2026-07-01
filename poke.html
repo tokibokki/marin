@@ -808,29 +808,49 @@
     const lens = document.getElementById('zoom-lens');
     const lensImg = document.getElementById('zoom-lens-img');
     const img = document.getElementById('detail-img');
-    const rect = wrap.getBoundingClientRect();
+    
+    const wrapRect = wrap.getBoundingClientRect();
     const imgRect = img.getBoundingClientRect();
     
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    // Cursor position relative to wrap
+    const cursorX = e.clientX - wrapRect.left;
+    const cursorY = e.clientY - wrapRect.top;
     
-    // Position the lens box around the cursor
+    // Position lens square around cursor
     const lensSize = 150;
-    lens.style.left = (x - lensSize / 2) + 'px';
-    lens.style.top = (y - lensSize / 2) + 'px';
+    lens.style.left = (cursorX - lensSize / 2) + 'px';
+    lens.style.top = (cursorY - lensSize / 2) + 'px';
     
-    // Calculate position within the actual image element
-    const imgX = e.clientX - imgRect.left;
-    const imgY = e.clientY - imgRect.top;
+    // Cursor position relative to image
+    const cursorXOnImg = e.clientX - imgRect.left;
+    const cursorYOnImg = e.clientY - imgRect.top;
+    
+    // Calculate what fraction of the image is under the cursor
+    const percentX = cursorXOnImg / imgRect.width;
+    const percentY = cursorYOnImg / imgRect.height;
     
     // Zoom level
     const zoomLevel = 3.5;
+    const lensCenter = lensSize / 2;
     
-    // Position the zoomed image inside the lens to show the area under cursor
-    const offsetX = -(imgX * zoomLevel - lensSize / 2);
-    const offsetY = -(imgY * zoomLevel - lensSize / 2);
+    // Size of zoomed image
+    const zoomedWidth = imgRect.width * zoomLevel;
+    const zoomedHeight = imgRect.height * zoomLevel;
     
-    lensImg.style.transform = `scale(${zoomLevel}) translate(${offsetX}px, ${offsetY}px)`;
+    // Position where the cursor point should be centered in the lens
+    const zoomedCursorX = percentX * zoomedWidth;
+    const zoomedCursorY = percentY * zoomedHeight;
+    
+    // Calculate offset to center the cursor point in the lens
+    const offsetX = lensCenter - zoomedCursorX;
+    const offsetY = lensCenter - zoomedCursorY;
+    
+    // Update lens image dimensions and position
+    lensImg.style.width = zoomedWidth + 'px';
+    lensImg.style.height = zoomedHeight + 'px';
+    lensImg.style.left = offsetX + 'px';
+    lensImg.style.top = offsetY + 'px';
+    lensImg.style.transform = 'none';
   }
 
   function stopPan(e) {
