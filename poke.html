@@ -247,11 +247,22 @@
     min-height: 420px; overflow: hidden; position: relative; cursor: zoom-in;
   }
   .detail-image-wrap img {
-    max-width: 100%; max-height: 100%; object-fit: contain; transition: none;
+    max-width: 100%; max-height: 100%; object-fit: contain;
     transform-origin: center;
   }
-  .detail-image-wrap.panning { cursor: grabbing; }
-  .detail-image-wrap.zoomed img { transform: scale(3.5); }
+  
+  #zoom-lens {
+    display: none; position: absolute; width: 150px; height: 150px;
+    border: 2px solid rgba(255, 255, 255, 0.8); border-radius: 8px;
+    background: #111; overflow: hidden; pointer-events: none;
+    box-shadow: 0 0 10px rgba(0,0,0,0.8);
+    z-index: 10;
+  }
+  #zoom-lens img {
+    position: absolute; width: 100%; height: 100%;
+    object-fit: contain;
+  }
+  .detail-image-wrap.zoomed { cursor: crosshair; }
   .detail-info {
     padding: 2rem; display: flex; flex-direction: column; justify-content: center;
   }
@@ -369,6 +380,9 @@
     <button class="detail-close" onclick="closeDetail()">×</button>
     <div class="detail-image-wrap" id="detail-image-wrap">
       <img id="detail-img" src="" alt="Card image" />
+      <div id="zoom-lens">
+        <img id="zoom-lens-img" src="" alt="Zoomed view" />
+      </div>
     </div>
     <div class="detail-info">
       <h2 id="detail-name"></h2>
@@ -378,7 +392,7 @@
         <span id="detail-qty"></span>
         <span id="detail-added"></span>
       </div>
-      <p class="zoom-tip">Click and drag the image to zoom and pan.</p>
+      <p class="zoom-tip">Click and drag to view a magnifying glass lens.</p>
     </div>
   </div>
 </div>
@@ -753,7 +767,9 @@
   window.openDetail = (id) => {
     const card = inventory.find(x => x.id === id);
     if (!card) return;
-    document.getElementById('detail-img').src = card.img || '';
+    const img = document.getElementById('detail-img');
+    img.src = card.img || '';
+    document.getElementById('zoom-lens-img').src = card.img || '';
     document.getElementById('detail-name').textContent = card.name;
     document.getElementById('detail-set').textContent = card.set || 'Unknown set';
     document.getElementById('detail-price').textContent = '$' + parseFloat(card.price || 0).toFixed(2);
@@ -776,34 +792,45 @@
     isPanning = true;
     const wrap = e.currentTarget;
     wrap.classList.add('zoomed');
-    wrap.classList.add('panning');
+    document.getElementById('zoom-lens').style.display = 'block';
   }
 
   function handleImagePan(e) {
     if (!isPanning) return;
     
     const wrap = e.currentTarget;
-    const img = wrap.querySelector('img');
+    const lens = document.getElementById('zoom-lens');
+    const lensImg = document.getElementById('zoom-lens-img');
     const rect = wrap.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
     
-    // Higher sensitivity for pan - moves more with less mouse movement
-    const offsetX = (x - 0.5) * 100;
-    const offsetY = (y - 0.5) * 100;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
     
-    img.style.transform = `scale(3.5) translate(${offsetX * -1.2}px, ${offsetY * -1.2}px)`;
+    // Position the lens box around the cursor
+    const lensSize = 150;
+    lens.style.left = (x - lensSize / 2) + 'px';
+    lens.style.top = (y - lensSize / 2) + 'px';
+    
+    // Calculate what portion of the zoomed image to show
+    // The image is 3.5x larger, so we need to position it accordingly
+    const zoomLevel = 3.5;
+    const offsetX = (x / rect.width) * rect.width * (zoomLevel - 1);
+    const offsetY = (y / rect.height) * rect.height * (zoomLevel - 1);
+    
+    lensImg.style.transform = `scale(${zoomLevel}) translate(${-offsetX / zoomLevel}px, ${-offsetY / zoomLevel}px)`;
   }
 
   function stopPan(e) {
     isPanning = false;
     const wrap = e.currentTarget;
-    wrap.classList.remove('panning');
+    wrap.classList.remove('zoomed');
+    document.getElementById('zoom-lens').style.display = 'none';
   }
 
   window.closeDetail = () => {
     document.getElementById('detail-modal').classList.remove('open');
     document.getElementById('detail-image-wrap').classList.remove('zoomed');
+    document.getElementById('zoom-lens').style.display = 'none';
     isPanning = false;
     const wrap = document.getElementById('detail-image-wrap');
     wrap.removeEventListener('mousedown', startPan);
